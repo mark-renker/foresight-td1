@@ -3,3 +3,8 @@ build/
 *.xcodeproj
 node_modules/
 JuceLibraryCode/
+Builds/
+*.component
+*.vst3
+JUCE/
+td1-build/
