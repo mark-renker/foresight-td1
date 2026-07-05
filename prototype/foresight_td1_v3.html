@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FORESIGHT TD-1 — Transient Designer Prototype v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#101216; --panel:#171a1f; --panel2:#1c2026; --line:#262b33;
+    --text:#c9cfd6; --dim:#7c8590; --amber:#e6a23c; --amber-dim:#8a6526;
+    --signal:#6fa8b8; --delta:#c96a4a; --focus:#e6a23c;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text);
+    font-family:'IBM Plex Mono',monospace; font-size:13px; -webkit-font-smoothing:antialiased;}
+  .rack{max-width:780px; margin:0 auto; padding:14px 12px 40px;}
+
+  header{display:flex; align-items:baseline; justify-content:space-between;
+    border-bottom:1px solid var(--line); padding:10px 2px 12px; gap:10px; flex-wrap:wrap;}
+  .unit-name{font-family:'Big Shoulders Display',sans-serif; font-weight:700;
+    font-size:30px; letter-spacing:.06em; color:var(--text); line-height:1;}
+  .unit-name em{font-style:normal; color:var(--amber);}
+  .unit-sub{color:var(--dim); font-size:11px; letter-spacing:.08em; text-transform:uppercase;}
+  #latency{color:var(--dim); font-size:11px;}
+
+  .transport{display:flex; gap:8px; margin:14px 0 6px; flex-wrap:wrap; align-items:center;}
+  button{font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--text); background:var(--panel2);
+    border:1px solid var(--line); border-radius:3px; padding:10px 14px; cursor:pointer;}
+  button:focus-visible{outline:2px solid var(--focus); outline-offset:2px;}
+  button.primary{min-width:110px; border-color:var(--amber-dim);}
+  button.on{background:#26200f; border-color:var(--amber); color:var(--amber);
+    box-shadow:inset 0 0 0 1px rgba(230,162,60,.25);}
+  button.delta-on{background:#241511; border-color:var(--delta); color:var(--delta);}
+  .seg{display:flex;}
+  .seg button{border-radius:0;}
+  .seg button:first-child{border-radius:3px 0 0 3px;}
+  .seg button:last-child{border-radius:0 3px 3px 0; border-left:none;}
+  #filename{color:var(--dim); font-size:11px; max-width:180px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  #status{color:var(--dim); font-size:11px; min-height:16px; margin:0 2px 10px;}
+  #status.err{color:var(--delta);}
+
+  .scope-wrap{background:var(--panel); border:1px solid var(--line); border-radius:4px;
+    padding:8px; margin-bottom:16px;}
+  canvas{display:block; width:100%; height:180px; background:#0b0d10; border-radius:2px;}
+  .scope-key{display:flex; gap:16px; padding:7px 4px 1px; font-size:10px;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--dim); flex-wrap:wrap;}
+  .key-dot{display:inline-block; width:8px; height:8px; border-radius:1px;
+    margin-right:5px; vertical-align:-1px;}
+
+  .controls{display:grid; grid-template-columns:1fr 1fr; gap:12px 22px;}
+  @media (max-width:560px){.controls{grid-template-columns:1fr;}}
+  .param{background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:10px 12px 12px;}
+  .param .row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;}
+  .param label{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim);}
+  .param .val{color:var(--amber); font-size:13px; font-weight:500;}
+  input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:22px;
+    background:transparent; cursor:pointer;}
+  input[type=range]:focus-visible{outline:2px solid var(--focus); outline-offset:2px; border-radius:3px;}
+  input[type=range]::-webkit-slider-runnable-track{height:3px; background:var(--line); border-radius:2px;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:14px; height:20px;
+    border-radius:2px; background:var(--amber); margin-top:-8.5px; border:1px solid #0b0d10;}
+  input[type=range]::-moz-range-track{height:3px; background:var(--line); border-radius:2px;}
+  input[type=range]::-moz-range-thumb{width:14px; height:20px; border-radius:2px;
+    background:var(--amber); border:1px solid #0b0d10;}
+
+  .toggles{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;}
+  .hint{color:var(--dim); font-size:11px; line-height:1.6; margin-top:16px;
+    border-top:1px solid var(--line); padding-top:10px;}
+  .hidden-input{display:none;}
+</style>
+</head>
+<body>
+<div class="rack">
+  <header>
+    <div>
+      <div class="unit-name">FORESIGHT <em>TD-1</em></div>
+      <div class="unit-sub">Anticipatory transient designer — engine prototype v3 (V1 feature set)</div>
+    </div>
+    <div id="latency">Latency: 3.0 ms (lookahead)</div>
+  </header>
+
+  <div class="transport">
+    <button id="play" class="primary">Play</button>
+    <div class="seg">
+      <button id="srcLoop" class="on">Drum loop</button>
+      <button id="srcFile">Load file</button>
+    </div>
+    <span id="filename"></span>
+    <input type="file" id="fileInput" class="hidden-input" accept="audio/*,.wav,.mp3,.aif,.aiff,.flac,.m4a,.ogg">
+  </div>
+  <div id="status">Audio engine idle — press Play to start.</div>
+
+  <div class="scope-wrap">
+    <canvas id="scope" width="1480" height="360"></canvas>
+    <div class="scope-key">
+      <span><span class="key-dot" style="background:var(--signal)"></span>Input</span>
+      <span><span class="key-dot" style="background:var(--amber)"></span>Gain trace ±24 dB</span>
+      <span id="grRead">Gain 0.0 dB</span>
+    </div>
+  </div>
+
+  <div class="controls" id="controls"></div>
+
+  <div class="toggles">
+    <button id="tglBypass">Bypass</button>
+    <button id="tglDelta">Delta</button>
+    <button id="tglClip" class="on">Soft clip</button>
+    <button id="tglLink" class="on">Stereo link</button>
+    <button id="tglAuto">Auto gain</button>
+    <button id="tglAud">Det audition</button>
+  </div>
+  <div class="toggles">
+    <div class="seg">
+      <button id="modeStereo" class="on">Stereo</button>
+      <button id="modeMid">Mid</button>
+      <button id="modeSide">Side</button>
+    </div>
+    <div class="seg">
+      <button id="abA" class="on">A</button>
+      <button id="abB">B</button>
+      <button id="abCopy">Copy &#8594;</button>
+    </div>
+    <button id="presetBtn">Preset &#8645;</button>
+  </div>
+  <div id="presetWrap" style="display:none; margin-top:10px;">
+    <textarea id="presetArea" style="width:100%; background:#0b0d10; color:#c9cfd6; border:1px solid #262b33; border-radius:3px; font-family:inherit; font-size:11px; padding:8px; min-height:70px;"></textarea>
+    <div class="toggles"><button id="presetApply">Apply preset</button></div>
+  </div>
+
+  <p class="hint">
+    v3 adds: Auto gain (loudness-matched A/B so louder never fools you),
+    Mid/Side targeting (shape the snare in the mid, leave the sides alone),
+    detector audition, tilt pivot, ADAA anti-aliased clipper, A/B slots, and
+    copy-paste presets. Double-click any slider to reset. WAV/MP3 load safest.
+  </p>
+</div>
+
+<script>
+'use strict';
+
+/* ---------------- status / error surfacing ---------------- */
+const statusEl = document.getElementById('status');
+function setStatus(msg, isErr){
+  statusEl.textContent = msg;
+  statusEl.className = isErr ? 'err' : '';
+}
+window.addEventListener('error', e=>{
+  setStatus('Script error: ' + (e.message || e.error), true);
+});
+window.addEventListener('unhandledrejection', e=>{
+  setStatus('Async error: ' + (e.reason && e.reason.message ? e.reason.message : e.reason), true);
+});
+
+/* ============================================================
+   DSP kernel — plain class, runs on the main thread inside a
+   ScriptProcessorNode. Structurally identical to a JUCE
+   processBlock; ports 1:1 to C++.
+   ============================================================ */
+class TShaperKernel {
+  constructor(sr){
+    this.sr = sr;
+    this.p = { attack:6, sustain:0, speed:1, schpf:60, tilt:0, pivot:750,
+               lookMs:3, mix:1, out:1, clip:1, link:1, delta:0, bypass:0,
+               msMode:0, autoGain:0, audition:0 };
+    this.maxD = Math.ceil(sr*0.012)+4;
+    this.d0 = new Float32Array(this.maxD);
+    this.d1 = new Float32Array(this.maxD);
+    this.wIdx = 0;
+    this.chs = [this.mkCh(), this.mkCh()];
+    this.mQ = [];            // meter queue: {pk, g, w} per sub-block
+    this.SUB = 256;          // meter resolution in samples
+    this.msD = 0; this.msW = 0; this.corr = 1;
+  }
+  mkCh(){ return {hpLp:0, eAF:0, eAS:0, eSF:0, eSS:0, g:1, wAs:0, tl:0, adX1:0}; }
+  set(obj){ Object.assign(this.p, obj); }
+  c(ms){ return 1 - Math.exp(-1/(this.sr*ms*0.001)); }
+  updEnv(st, a, k){
+    st.eAF += (a>st.eAF ? k.cAFa : k.cArel)*(a-st.eAF);
+    st.eAS += (a>st.eAS ? k.cASa : k.cArel)*(a-st.eAS);
+    st.eSF += (a>st.eSF ? k.cSatk : k.cSFr)*(a-st.eSF);
+    st.eSS += (a>st.eSS ? k.cSatk : k.cSSr)*(a-st.eSS);
+    let wA = (st.eAF - st.eAS)/(st.eAF + 1e-4);
+    if(wA<0)wA=0; if(wA>1)wA=1;
+    let wS = (st.eSS - st.eSF)/(st.eSS + 1e-4);
+    if(wS<0)wS=0; if(wS>1)wS=1;
+    st.wAs += k.cW*(wA - st.wAs);
+    const gdb = k.aDb*wA + k.sDb*wS;
+    const gt = Math.pow(10, gdb*0.05);
+    st.g += (gt>st.g ? k.cGup : k.cGdn)*(gt - st.g);
+    return wA;
+  }
+  shapeMix(st, xd, k, p){
+    st.tl += k.cTl*(xd - st.tl);
+    const hpP = xd - st.tl;
+    const tilted = st.tl*k.gLo + hpP*k.gHi;
+    const xt = xd + (tilted - xd)*st.wAs;
+    const wet = xt*st.g;
+    return xd + (wet - xd)*p.mix;
+  }
+  logcosh(v){
+    const vc = Math.max(-20, Math.min(20, v));
+    return Math.log(Math.cosh(vc)) + Math.max(0, Math.abs(v)-20);
+  }
+  adaa(st, x){
+    const x1 = st.adX1, dx = x - x1;
+    const y = Math.abs(dx) > 1e-6
+      ? (this.logcosh(x) - this.logcosh(x1))/dx
+      : Math.tanh(0.5*(x + x1));
+    st.adX1 = x; return y;
+  }
+  process(inL, inR, outL, outR, n){
+    const p = this.p;
+    const T = 1/Math.max(0.25, p.speed);
+    const k = {
+      cAFa: this.c(0.08),  cASa: this.c(12*T),  cArel: this.c(30*T),
+      cSatk:this.c(0.5),   cSFr: this.c(45*T),  cSSr:  this.c(450*T),
+      cGup: this.c(0.12),  cGdn: this.c(6),     cW:    this.c(0.8),
+      cTl: 1-Math.exp(-2*Math.PI*Math.max(100,p.pivot)/this.sr),
+      gHi: Math.pow(10, p.tilt/40), gLo: Math.pow(10, -p.tilt/40),
+      aDb: p.attack, sDb: p.sustain
+    };
+    const cHp = 1-Math.exp(-2*Math.PI*Math.max(10,p.schpf)/this.sr);
+    const cR  = this.c(400), cC = this.c(200);
+    const look = Math.min(this.maxD-2, Math.round(p.lookMs*0.001*this.sr));
+    const s0 = this.chs[0], s1 = this.chs[1];
+    const d0 = this.d0, d1 = this.d1, M = this.maxD;
+    const ms = p.msMode|0;
+    let blkPk = 0, lastWA = 0, subCnt = 0;
+
+    for(let i=0;i<n;i++){
+      const x0 = inL ? inL[i] : 0;
+      const x1 = inR ? inR[i] : x0;
+      const w0 = ms ? (x0+x1)*0.5 : x0;
+      const w1 = ms ? (x0-x1)*0.5 : x1;
+      d0[this.wIdx] = w0; d1[this.wIdx] = w1;
+      let r = this.wIdx - look; if(r<0) r += M;
+      const dw0 = d0[r], dw1 = d1[r];
+      this.wIdx++; if(this.wIdx>=M) this.wIdx = 0;
+
+      s0.hpLp += cHp*(w0 - s0.hpLp); const h0 = w0 - s0.hpLp, a0 = Math.abs(h0);
+      s1.hpLp += cHp*(w1 - s1.hpLp); const h1 = w1 - s1.hpLp, a1 = Math.abs(h1);
+      const lnk = (ms===0) && p.link;
+      const lm = a0>a1 ? a0 : a1;
+      lastWA = this.updEnv(s0, lnk ? lm : a0, k);
+      this.updEnv(s1, lnk ? lm : a1, k);
+
+      const p0 = (ms===2) ? dw0 : this.shapeMix(s0, dw0, k, p);
+      const p1 = (ms===1) ? dw1 : this.shapeMix(s1, dw1, k, p);
+      const pL = ms ? p0+p1 : p0,  pR = ms ? p0-p1 : p1;
+      const dL = ms ? dw0+dw1 : dw0, dR = ms ? dw0-dw1 : dw1;
+
+      this.msD += cR*((dL*dL + dR*dR) - this.msD);
+      this.msW += cR*((pL*pL + pR*pR) - this.msW);
+      const corrT = Math.min(4, Math.max(0.25,
+        Math.sqrt((this.msD + 1e-9)/(this.msW + 1e-9))));
+      this.corr += cC*(corrT - this.corr);
+      const cEff = (p.autoGain && !p.delta) ? this.corr : 1;
+
+      let y0, y1;
+      if(p.bypass){ y0 = dL; y1 = dR; }
+      else if(p.audition){ y0 = h0; y1 = h1; }
+      else {
+        y0 = p.delta ? (pL - dL) : pL*cEff;
+        y1 = p.delta ? (pR - dR) : pR*cEff;
+        if(p.clip){ y0 = this.adaa(s0, y0); y1 = this.adaa(s1, y1); }
+        y0 *= p.out; y1 *= p.out;
+      }
+      outL[i] = y0; if(outR) outR[i] = y1;
+
+      const ax = x0<0?-x0:x0, ay = x1<0?-x1:x1;
+      if(ax>blkPk) blkPk = ax; if(ay>blkPk) blkPk = ay;
+
+      if(++subCnt >= this.SUB){
+        this.mQ.push({ pk: blkPk,
+          g: 20*Math.log10(Math.max(1e-6, s0.g)), w: lastWA });
+        blkPk = 0; subCnt = 0;
+      }
+    }
+    if(subCnt > 0){
+      this.mQ.push({ pk: blkPk,
+        g: 20*Math.log10(Math.max(1e-6, s0.g)), w: lastWA });
+    }
+  }
+}
+
+/* ================= built-in drum loop (no assets) ================= */
+function makeDrumLoop(ctx){
+  const sr = ctx.sampleRate, bpm = 112, spb = 60/bpm, beats = 8;
+  const len = Math.round(sr*spb*beats);
+  const buf = ctx.createBuffer(2, len, sr);
+  const L = buf.getChannelData(0), R = buf.getChannelData(1);
+  const add = (beat, dur, fn, pan)=>{
+    const n0 = Math.round(beat*spb*sr);
+    const N  = Math.min(len-n0, Math.round(dur*sr));
+    const gl = Math.min(1, 1-pan), gr = Math.min(1, 1+pan);
+    for(let i=0;i<N;i++){ const s = fn(i/sr); L[n0+i]+=s*gl; R[n0+i]+=s*gr; }
+  };
+  const kick = (g)=>{ let ph=0; return (t)=>{
+    const f = 150*Math.exp(-t*35)+46; ph += 2*Math.PI*f/sr;
+    let s = Math.sin(ph)*Math.exp(-t*7.5);
+    if(t<0.003) s += (Math.random()*2-1)*0.6*Math.exp(-t*1500);
+    return s*0.95*g; }; };
+  const snare = (g)=>{ let lp=0; return (t)=>{
+    const tone = Math.sin(2*Math.PI*196*t)*Math.exp(-t*24)*0.35;
+    const n = Math.random()*2-1; lp += 0.25*(n-lp); const bp = n-lp;
+    return (tone + bp*Math.exp(-t*13)*0.8)*0.8*g; }; };
+  const hat = (open,g)=>{ let pn=0; return (t)=>{
+    const n = Math.random()*2-1; const hp = n-pn; pn = n;
+    return hp*Math.exp(-t*(open?16:65))*0.55*g; }; };
+  [0,2,4,5.5,6].forEach(b=>add(b,0.45,kick(1),0));
+  [1,3,5,7].forEach(b=>add(b,0.35,snare(1),0.06));
+  add(3.75,0.25,snare(0.35),-0.10);
+  for(let b=0;b<8;b+=0.5) add(b,0.30,hat(false, b%1===0?0.85:0.5),0.25);
+  add(3.5,0.6,hat(true,0.9),0.25); add(7.5,0.6,hat(true,0.9),0.25);
+  let pk=0; for(let i=0;i<len;i++){ const a=Math.abs(L[i]),b=Math.abs(R[i]); if(a>pk)pk=a; if(b>pk)pk=b; }
+  const g=0.85/pk; for(let i=0;i<len;i++){ L[i]*=g; R[i]*=g; }
+  return buf;
+}
+
+/* ================= audio graph ================= */
+let ctx=null, proc=null, kernel=null, srcNode=null, playing=false;
+const buffers = { loop:null, file:null };
+let current = 'loop';
+
+async function ensureAudio(){
+  if(ctx){
+    if(ctx.state !== 'running') await ctx.resume();
+    return;
+  }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) throw new Error('Web Audio API not available in this environment.');
+  ctx = new AC();
+  kernel = new TShaperKernel(ctx.sampleRate);
+  sendAllParams();
+
+  // ScriptProcessorNode: main-thread DSP, no external module, sandbox-safe.
+  proc = ctx.createScriptProcessor(1024, 2, 2);
+  proc.onaudioprocess = (e)=>{
+    const ib = e.inputBuffer, ob = e.outputBuffer;
+    const inL = ib.getChannelData(0);
+    const inR = ib.numberOfChannels > 1 ? ib.getChannelData(1) : null;
+    const outL = ob.getChannelData(0);
+    const outR = ob.numberOfChannels > 1 ? ob.getChannelData(1) : null;
+    kernel.process(inL, inR, outL, outR, ib.length);
+    // drain meters into the scope ring
+    const q = kernel.mQ;
+    for(let i=0;i<q.length;i++){
+      pkBuf[head]=q[i].pk; gBuf[head]=q[i].g; wBuf[head]=q[i].w;
+      head=(head+1)%W;
+    }
+    q.length = 0;
+  };
+  proc.connect(ctx.destination);
+
+  // iOS/webview unlock: play one silent buffer inside the user gesture.
+  const silent = ctx.createBuffer(1, 1, ctx.sampleRate);
+  const s = ctx.createBufferSource(); s.buffer = silent;
+  s.connect(ctx.destination); s.start(0);
+
+  buffers.loop = makeDrumLoop(ctx);
+  if(ctx.state !== 'running') await ctx.resume();
+  setStatus('Engine running — ScriptProcessor @ ' + ctx.sampleRate + ' Hz, 1024-sample buffer.');
+}
+
+function startPlayback(){
+  stopPlayback();
+  const b = buffers[current];
+  if(!b){ setStatus('No ' + current + ' buffer loaded yet.', true); return; }
+  srcNode = ctx.createBufferSource();
+  srcNode.buffer = b; srcNode.loop = true;
+  srcNode.connect(proc); srcNode.start();
+  playing = true; playBtn.textContent = 'Stop'; playBtn.classList.add('on');
+}
+function stopPlayback(){
+  if(srcNode){ try{srcNode.stop();}catch(e){} try{srcNode.disconnect();}catch(e){} srcNode=null; }
+  playing = false; playBtn.textContent = 'Play'; playBtn.classList.remove('on');
+}
+
+/* Robust decode: promise form with callback fallback, single settle. */
+function decodeAudio(ab){
+  return new Promise((resolve, reject)=>{
+    let settled = false;
+    const ok  = b=>{ if(!settled){ settled=true; resolve(b); } };
+    const bad = e=>{ if(!settled){ settled=true;
+      reject(e instanceof Error ? e : new Error(e && e.message ? e.message : 'decoder returned no detail')); } };
+    try{
+      const p = ctx.decodeAudioData(ab, ok, bad);
+      if(p && typeof p.then === 'function') p.then(ok, bad);
+    }catch(err){ bad(err); }
+  });
+}
+
+/* ================= parameters / UI ================= */
+const paramSpecs = [
+  {id:'attack',  label:'Attack',         min:-24, max:24,  step:0.1, def:6,   fmt:v=>v.toFixed(1)+' dB'},
+  {id:'sustain', label:'Sustain',        min:-24, max:24,  step:0.1, def:0,   fmt:v=>v.toFixed(1)+' dB'},
+  {id:'speed',   label:'Detector speed', min:0.5, max:2,   step:0.01,def:1,   fmt:v=>v.toFixed(2)+'\u00d7'},
+  {id:'schpf',   label:'Detector HPF',   min:20,  max:500, step:1,   def:60,  fmt:v=>v.toFixed(0)+' Hz'},
+  {id:'tilt',    label:'Transient tilt', min:-12, max:12,  step:0.1, def:0,   fmt:v=>v.toFixed(1)+' dB'},
+  {id:'pivot',   label:'Tilt pivot',     min:200, max:2000,step:1,   def:750, fmt:v=>v.toFixed(0)+' Hz'},
+  {id:'lookMs',  label:'Lookahead',      min:0,   max:10,  step:0.1, def:3,   fmt:v=>v.toFixed(1)+' ms'},
+  {id:'mix',     label:'Mix',            min:0,   max:100, step:1,   def:100, fmt:v=>v.toFixed(0)+' %'},
+  {id:'outDb',   label:'Output',         min:-12, max:12,  step:0.1, def:0,   fmt:v=>v.toFixed(1)+' dB'},
+];
+const state = {};
+paramSpecs.forEach(s=> state[s.id]=s.def);
+const toggles = { bypass:0, delta:0, clip:1, link:1, autoGain:0, audition:0 };
+
+function sendParam(id, v){
+  if(!kernel) return;
+  if(id==='outDb')      kernel.set({out: Math.pow(10, v/20)});
+  else if(id==='mix')   kernel.set({mix: v/100});
+  else { const o={}; o[id]=v; kernel.set(o); }
+}
+function sendAllParams(){
+  paramSpecs.forEach(s=>sendParam(s.id, state[s.id]));
+  if(kernel){ kernel.set(toggles); kernel.set({msMode: uiMode}); }
+}
+
+const controls = document.getElementById('controls');
+paramSpecs.forEach(spec=>{
+  const wrap = document.createElement('div'); wrap.className='param';
+  const row = document.createElement('div'); row.className='row';
+  const lab = document.createElement('label'); lab.textContent = spec.label;
+  lab.setAttribute('for','sl_'+spec.id);
+  const val = document.createElement('span'); val.className='val';
+  val.textContent = spec.fmt(spec.def);
+  row.appendChild(lab); row.appendChild(val);
+  const sl = document.createElement('input');
+  sl.type='range'; sl.id='sl_'+spec.id;
+  sl.min=spec.min; sl.max=spec.max; sl.step=spec.step; sl.value=spec.def;
+  sl.addEventListener('input', ()=>{
+    const v = parseFloat(sl.value);
+    state[spec.id]=v; val.textContent=spec.fmt(v); sendParam(spec.id, v);
+    if(spec.id==='lookMs')
+      document.getElementById('latency').textContent =
+        'Latency: '+v.toFixed(1)+' ms '+(v>0?'(lookahead)':'(zero-latency)');
+  });
+  sl.addEventListener('dblclick', ()=>{
+    sl.value = spec.def; sl.dispatchEvent(new Event('input'));
+  });
+  wrap.appendChild(row); wrap.appendChild(sl);
+  controls.appendChild(wrap);
+});
+
+function bindToggle(btnId, key, onClass){
+  const b = document.getElementById(btnId);
+  b.addEventListener('click', ()=>{
+    toggles[key] = toggles[key] ? 0 : 1;
+    b.classList.toggle(onClass||'on', !!toggles[key]);
+    if(kernel){ const o={}; o[key]=toggles[key]; kernel.set(o); }
+  });
+}
+bindToggle('tglBypass','bypass');
+bindToggle('tglDelta','delta','delta-on');
+bindToggle('tglClip','clip');
+bindToggle('tglLink','link');
+bindToggle('tglAuto','autoGain');
+bindToggle('tglAud','audition');
+
+/* processing target */
+let uiMode = 0;
+const modeBtns = ['modeStereo','modeMid','modeSide'].map(id=>document.getElementById(id));
+modeBtns.forEach((b,idx)=>b.addEventListener('click', ()=>{
+  uiMode = idx;
+  modeBtns.forEach((x,j)=>x.classList.toggle('on', j===idx));
+  if(kernel) kernel.set({msMode: idx});
+}));
+
+/* A/B compare slots */
+const slots = {A:null, B:null}; let activeSlot = 'A';
+function snapshot(){ return JSON.stringify({state:{...state}, toggles:{...toggles}, mode:uiMode}); }
+function applySnapshot(js){
+  const o = JSON.parse(js);
+  paramSpecs.forEach(spec=>{
+    if(o.state && o.state[spec.id]!==undefined){
+      const sl = document.getElementById('sl_'+spec.id);
+      sl.value = o.state[spec.id]; sl.dispatchEvent(new Event('input'));
+    }
+  });
+  if(o.toggles){
+    [['tglBypass','bypass'],['tglDelta','delta'],['tglClip','clip'],
+     ['tglLink','link'],['tglAuto','autoGain'],['tglAud','audition']].forEach(([id,key])=>{
+      const want = o.toggles[key]?1:0;
+      if(toggles[key]!==want) document.getElementById(id).click();
+    });
+  }
+  if(o.mode!==undefined && o.mode!==uiMode) modeBtns[o.mode].click();
+}
+const abA=document.getElementById('abA'), abB=document.getElementById('abB');
+function selectSlot(sl){
+  slots[activeSlot] = snapshot();
+  activeSlot = sl;
+  abA.classList.toggle('on', sl==='A'); abB.classList.toggle('on', sl==='B');
+  if(slots[sl]) applySnapshot(slots[sl]);
+}
+abA.addEventListener('click', ()=>selectSlot('A'));
+abB.addEventListener('click', ()=>selectSlot('B'));
+document.getElementById('abCopy').addEventListener('click', ()=>{
+  const other = activeSlot==='A' ? 'B' : 'A';
+  slots[other] = snapshot();
+  setStatus('Copied slot ' + activeSlot + ' \u2192 ' + other + '.');
+});
+
+/* preset text I/O (sandbox-safe: copy/paste JSON) */
+const presetWrap = document.getElementById('presetWrap');
+const pArea = document.getElementById('presetArea');
+document.getElementById('presetBtn').addEventListener('click', ()=>{
+  const vis = presetWrap.style.display !== 'none';
+  presetWrap.style.display = vis ? 'none' : 'block';
+  if(!vis) pArea.value = snapshot();
+});
+document.getElementById('presetApply').addEventListener('click', ()=>{
+  try{ applySnapshot(pArea.value); setStatus('Preset applied.'); }
+  catch(err){ setStatus('Preset parse failed: ' + err.message, true); }
+});
+
+const playBtn = document.getElementById('play');
+playBtn.addEventListener('click', async ()=>{
+  try{
+    await ensureAudio();
+    playing ? stopPlayback() : startPlayback();
+  }catch(err){
+    setStatus('Audio init failed: ' + err.message, true);
+  }
+});
+document.getElementById('srcLoop').addEventListener('click', ()=>{
+  current='loop';
+  document.getElementById('srcLoop').classList.add('on');
+  document.getElementById('srcFile').classList.remove('on');
+  if(playing) startPlayback();
+});
+document.getElementById('srcFile').addEventListener('click', ()=>{
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    await ensureAudio();
+    setStatus('Decoding "' + f.name + '"\u2026');
+    const ab = await f.arrayBuffer();
+    buffers.file = await decodeAudio(ab);
+    current='file';
+    document.getElementById('filename').textContent = f.name;
+    document.getElementById('srcFile').classList.add('on');
+    document.getElementById('srcLoop').classList.remove('on');
+    setStatus('Loaded "' + f.name + '" \u2014 ' +
+      buffers.file.numberOfChannels + ' ch, ' +
+      buffers.file.duration.toFixed(1) + ' s.');
+    startPlayback();
+  }catch(err){
+    setStatus('File load failed: ' + err.message +
+      ' \u2014 try a WAV or MP3.', true);
+  }finally{
+    e.target.value = '';
+  }
+});
+
+/* ================= scope ================= */
+const cv = document.getElementById('scope'), g2 = cv.getContext('2d');
+const W = 370;
+const pkBuf = new Float32Array(W), gBuf = new Float32Array(W), wBuf = new Float32Array(W);
+let head = 0;
+function drawScope(){
+  const cw = cv.width, ch = cv.height, mid = ch*0.5;
+  g2.fillStyle = '#0b0d10'; g2.fillRect(0,0,cw,ch);
+  g2.strokeStyle = '#1c222b'; g2.lineWidth = 1;
+  [-12,0,12].forEach(db=>{
+    const y = mid - (db/24)*(ch*0.42);
+    g2.beginPath(); g2.moveTo(0,y); g2.lineTo(cw,y); g2.stroke();
+  });
+  g2.fillStyle = '#3a4750';
+  g2.font = '20px IBM Plex Mono, monospace';
+  g2.fillText('+12', 8, mid-(12/24)*(ch*0.42)-6);
+  g2.fillText('0 dB', 8, mid-6);
+  g2.fillText('-12', 8, mid+(12/24)*(ch*0.42)-6);
+  const step = cw/W;
+  for(let i=0;i<W;i++){
+    const idx=(head+i)%W, x=i*step;
+    const h = Math.min(1, pkBuf[idx])*ch*0.44;
+    const wgt = wBuf[idx];
+    g2.strokeStyle = wgt>0.35 ? 'rgba(150,200,214,0.95)' : 'rgba(111,168,184,0.55)';
+    g2.beginPath(); g2.moveTo(x, mid-h); g2.lineTo(x, mid+h); g2.stroke();
+  }
+  g2.strokeStyle = '#e6a23c'; g2.lineWidth = 2.5; g2.beginPath();
+  for(let i=0;i<W;i++){
+    const idx=(head+i)%W, x=i*step;
+    const db = Math.max(-24, Math.min(24, gBuf[idx]));
+    const y = mid - (db/24)*(ch*0.42);
+    i===0 ? g2.moveTo(x,y) : g2.lineTo(x,y);
+  }
+  g2.stroke();
+  let gMin = 0, gMax = 0;
+  for(let i=0;i<W;i++){ if(gBuf[i]<gMin) gMin=gBuf[i]; if(gBuf[i]>gMax) gMax=gBuf[i]; }
+  const gNow = gBuf[(head-1+W)%W];
+  const grEl = document.getElementById('grRead');
+  if(grEl) grEl.textContent = 'Gain ' + gNow.toFixed(1) + ' dB (win ' +
+    gMin.toFixed(1) + ' / +' + gMax.toFixed(1) + ')';
+  requestAnimationFrame(drawScope);
+}
+requestAnimationFrame(drawScope);
+</script>
+</body>
+</html>
