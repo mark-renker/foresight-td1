@@ -70,12 +70,15 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --target ForesightTD1_VST3 --parallel
       - name: pluginval (strictness 10)
-        shell: pwsh
+        # bash, not pwsh: pluginval.exe is a GUI-subsystem app and PowerShell's
+        # $LASTEXITCODE is unreliable for those (reported failure after SUCCESS).
+        shell: bash
         run: |
-          Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pluginval.zip
-          Expand-Archive pluginval.zip -DestinationPath .
-          ./pluginval.exe --strictness-level 10 --validate-in-process --skip-gui-tests "build/plugin/ForesightTD1_artefacts/Release/VST3/Foresight TD-1.vst3"
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
+          unzip -q pluginval.zip
+          ./pluginval.exe --strictness-level 10 --validate-in-process --skip-gui-tests \
+            "build/plugin/ForesightTD1_artefacts/Release/VST3/Foresight TD-1.vst3" | tee pluginval.log
+          grep -q "SUCCESS" pluginval.log && ! grep -q "FAILED" pluginval.log
       - uses: actions/upload-artifact@v4
         with:
           name: ForesightTD1-Windows
