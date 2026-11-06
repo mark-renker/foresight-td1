@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  core:
+    name: td1-core tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Configure
+        run: cmake -S . -B build -DTD1_BUILD_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Test (properties + golden vs JS reference)
+        run: ctest --test-dir build -C Release --output-on-failure
+
+  plugin-macos:
+    name: Plugin (macOS, universal) + pluginval + auval
+    runs-on: macos-latest
+    needs: core
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (JUCE fetched)
+        run: >
+          cmake -S . -B build -G Xcode -DTD1_BUILD_TESTS=OFF -DTD1_BUILD_SNAPSHOT=OFF
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+      - name: Build
+        run: cmake --build build --config Release --target ForesightTD1_VST3 ForesightTD1_AU --parallel
+      - name: Install to user plug-in folders
+        run: |
+          A="build/plugin/ForesightTD1_artefacts/Release"
+          mkdir -p ~/Library/Audio/Plug-Ins/Components ~/Library/Audio/Plug-Ins/VST3
+          cp -R "$A/AU/Foresight TD-1.component" ~/Library/Audio/Plug-Ins/Components/
+          cp -R "$A/VST3/Foresight TD-1.vst3" ~/Library/Audio/Plug-Ins/VST3/
+          killall -9 AudioComponentRegistrar || true
+      - name: auval
+        run: auval -strict -v aufx Ftd1 Bktv
+      - name: pluginval (strictness 10)
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process \
+            --skip-gui-tests "$HOME/Library/Audio/Plug-Ins/VST3/Foresight TD-1.vst3"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ForesightTD1-macOS
+          path: |
+            build/plugin/ForesightTD1_artefacts/Release/VST3
+            build/plugin/ForesightTD1_artefacts/Release/AU
+
+  plugin-windows:
+    name: Plugin (Windows) + pluginval
+    runs-on: windows-latest
+    needs: core
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (JUCE fetched)
+        run: cmake -S . -B build -DTD1_BUILD_TESTS=OFF -DTD1_BUILD_SNAPSHOT=OFF
+      - name: Build
+        run: cmake --build build --config Release --target ForesightTD1_VST3 --parallel
+      - name: pluginval (strictness 10)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath .
+          ./pluginval.exe --strictness-level 10 --validate-in-process --skip-gui-tests "build/plugin/ForesightTD1_artefacts/Release/VST3/Foresight TD-1.vst3"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ForesightTD1-Windows
+          path: build/plugin/ForesightTD1_artefacts/Release/VST3
