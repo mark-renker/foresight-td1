@@ -94,4 +94,6 @@ zero-latency mode. **Declicking**: bypass crossfades against the latency-aligned
 dry path; target, delta, listen and clip changes dip to silence for 4 ms and
 switch at zero; mix, output, tilt and pre ramp over 20 ms.
 
-Proprietary — all rights reserved. Do not distribute.
+Source code: proprietary, all rights reserved (Mark Renker). The compiled plug-ins published on the
+[Releases page](../../releases/latest) are free to download and use for any music-making, personal or commercial;
+please do not redistribute them or the source, and link here instead.
