@@ -1,0 +1,10 @@
+Foresight TD-1 - manual macOS install (if you prefer not to use the .pkg)
+
+1. Copy "Foresight TD-1.component" to ~/Library/Audio/Plug-Ins/Components/
+2. Copy "Foresight TD-1.vst3" to ~/Library/Audio/Plug-Ins/VST3/
+3. Optionally copy "Foresight TD-1.app" (standalone) to /Applications/
+4. Because the bundles were downloaded (not installed by a .pkg), macOS quarantines them. Clear that once:
+      xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/"Foresight TD-1.component" \
+                                     ~/Library/Audio/Plug-Ins/VST3/"Foresight TD-1.vst3" \
+                                     /Applications/"Foresight TD-1.app"
+5. Rescan plug-ins in your DAW. The plug-in appears under "Black Tie Ventures".

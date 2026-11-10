@@ -1,5 +1,5 @@
 .DS_Store
-build/
+build*/
 *.xcodeproj
 node_modules/
 JuceLibraryCode/
@@ -8,3 +8,4 @@ Builds/
 *.vst3
 JUCE/
 td1-build/
+dist/

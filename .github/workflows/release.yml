@@ -1,0 +1,65 @@
+# Tag v* -> macOS universal .pkg installer (+ raw bundles zip) and Windows zip, attached to a GitHub Release.
+name: release
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (universal, JUCE fetched by CMake)
+        run: >
+          cmake -S . -B build-universal -G Xcode -DTD1_BUILD_TESTS=OFF -DTD1_BUILD_SNAPSHOT=OFF
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+      - name: Build
+        run: >
+          cmake --build build-universal --config Release --parallel
+          --target ForesightTD1_VST3 ForesightTD1_AU ForesightTD1_Standalone
+      - name: Package installer
+        run: packaging/make_installer.sh build-universal
+      - uses: actions/upload-artifact@v4
+        with: { name: macos, path: dist/* }
+  windows:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (JUCE fetched by CMake)
+        run: cmake -S . -B build -DTD1_BUILD_TESTS=OFF -DTD1_BUILD_SNAPSHOT=OFF
+      - name: Build VST3
+        run: cmake --build build --config Release --parallel --target ForesightTD1_VST3
+      - name: Build Standalone (optional)
+        continue-on-error: true
+        run: cmake --build build --config Release --parallel --target ForesightTD1_Standalone
+      - name: Zip
+        shell: bash
+        run: |
+          VERSION=$(sed -n 's/^project(ForesightTD1 VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          A="build/plugin/ForesightTD1_artefacts/Release"
+          OUT="Foresight TD-1 $VERSION (Windows)"; mkdir -p "$OUT" dist
+          cp -R "$A/VST3/Foresight TD-1.vst3" "$OUT/"
+          [ -f "$A/Standalone/Foresight TD-1.exe" ] && cp "$A/Standalone/Foresight TD-1.exe" "$OUT/"
+          cp packaging/INSTALL-Windows.txt "$OUT/INSTALL.txt"
+          7z a "dist/ForesightTD1-$VERSION-Windows-x64.zip" "$OUT"
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: dist/* }
+  publish:
+    if: always() && startsWith(github.ref, 'refs/tags/v') && needs.macos.result == 'success'
+    needs: [ macos, windows ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**/*
+          body: |
+            ## Install
+            **macOS** (11+, Apple Silicon + Intel): download `ForesightTD1-*-macOS.pkg`, open it (right-click > Open if Gatekeeper objects: the installer is not notarized), tick the formats you want (AU, VST3, standalone app). Done; rescan plug-ins in your DAW.
+            **Windows** (x64): download `ForesightTD1-*-Windows-x64.zip`, unzip, copy the `Foresight TD-1.vst3` folder to `C:\Program Files\Common Files\VST3\`.
+            The plug-in appears under **Black Tie Ventures > Foresight TD-1**. The `-macOS-bundles.zip` holds the raw bundles for manual installs.
+          generate_release_notes: true

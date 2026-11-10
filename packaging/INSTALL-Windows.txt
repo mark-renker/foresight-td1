@@ -1,0 +1,6 @@
+Foresight TD-1 - Windows install
+
+1. Copy the "Foresight TD-1.vst3" folder to   C:\Program Files\Common Files\VST3\
+2. Rescan plug-ins in your DAW. The plug-in appears under "Black Tie Ventures".
+3. "Foresight TD-1.exe" is the standalone app; it runs from anywhere. If SmartScreen warns about an
+   unrecognized app, click More info > Run anyway (the build is not code-signed).

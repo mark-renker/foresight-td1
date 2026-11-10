@@ -13,6 +13,22 @@ that only work because the detector sees the future:
 Also included: **Threshold** (bleed focus), so quiet onsets such as hat bleed in
 a snare mic are left alone.
 
+## Install (no build needed)
+
+Grab the latest files from the **[Releases page](../../releases/latest)**:
+
+* **macOS** (11 or later, Apple Silicon and Intel): download `ForesightTD1-<version>-macOS.pkg` and open it. If
+  Gatekeeper objects (the installer is not notarized), right-click the file and choose *Open*. Tick the formats you
+  want (AU, VST3, standalone app); they go to `/Library/Audio/Plug-Ins` and `/Applications`. Rescan plug-ins in
+  your DAW. Prefer not to run an installer? `ForesightTD1-<version>-macOS-bundles.zip` has the raw bundles and a
+  manual-install note.
+* **Windows** (x64): download `ForesightTD1-<version>-Windows-x64.zip`, unzip, copy the `Foresight TD-1.vst3`
+  folder to `C:\Program Files\Common Files\VST3\` and rescan plug-ins in your DAW. (`Foresight TD-1.exe` in the
+  zip is the standalone app.)
+
+The plug-in shows up under **Black Tie Ventures › Foresight TD-1**. Every tagged release is built by
+`.github/workflows/release.yml`; `packaging/make_installer.sh build-universal` makes the same `.pkg` locally.
+
 ## Repository layout
 | Path | What |
 |---|---|
@@ -24,7 +40,7 @@ a snare mic are left alone.
 | `faust/` | Original Faust ports (legacy: these don't report latency to the host, so use the C++ plugin) |
 | `docs/ROADMAP.md` | Product roadmap |
 
-## Build (macOS)
+## Build from source (macOS)
 ```sh
 # uses ~/dev/JUCE or ~/JUCE if present, else fetches JUCE 8.0.14
 cmake -S . -B ~/dev/td1-build/cmake -DCMAKE_BUILD_TYPE=Release
