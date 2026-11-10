@@ -1,5 +1,7 @@
 # FORESIGHT TD-1 — Anticipatory Transient Designer
 
+![Foresight TD-1 editor](docs/images/editor.png)
+
 A transient designer whose detector runs *ahead* of the audio (lookahead). It
 uses ratio-normalised, level-independent detection and adds transient-only
 spectral tilt, Mid/Side targeting, loudness-compensated A/B, and two features
@@ -12,6 +14,13 @@ that only work because the detector sees the future:
 
 Also included: **Threshold** (bleed focus), so quiet onsets such as hat bleed in
 a snare mic are left alone.
+
+<p align="center"><img src="docs/images/lens.png" width="420" alt="Foresight Lens: the gain dips inside the lookahead window before the onset (Kick - Gap Punch preset)"></p>
+<p align="center"><sub>Foresight Lens with the <i>Kick - Gap Punch</i> preset: PRE ducks the 5 ms before the hit, then ATTACK lifts the transient.</sub></p>
+
+Formats: AU, VST3 and Standalone (macOS), VST3 (Windows); CLAP is opt-in.
+Screenshots are rendered by `td1_snapshot` (see below) with a synthetic drum
+loop running through the processor.
 
 ## Install (no build needed)
 
